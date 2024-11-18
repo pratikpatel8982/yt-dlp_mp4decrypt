@@ -1,3 +1,4 @@
+from yt_dlp.postprocessor import FFmpegMergerPP
 from yt_dlp.postprocessor.common import PostProcessor
 import os
 import subprocess
@@ -8,8 +9,21 @@ class MP4DecryptPP(PostProcessor):
         self._kwargs = kwargs
 
     def run(self, info):
+        if 'requested_formats' in info:
+            for part in info['requested_formats']:
+                self.decrypt(part)
+        elif info['__real_download']:
+            self.decrypt(info)
+
+        if '+' in info['format_id']:
+            info['__files_to_merge'] = [part['filepath'] for part in info['requested_formats']]
+            info = self._downloader.run_pp(FFmpegMergerPP(), info)
+
+        return [], info
+
+    def decrypt(self, info):
         filepath = info.get('filepath')
-        
+
         if filepath:
             if 'decryption_key' in self._kwargs:
                 decryption_key = self._kwargs['decryption_key']
@@ -30,13 +44,6 @@ class MP4DecryptPP(PostProcessor):
                     self.to_screen(f'Keyfile not found: "{keyfile}"')
             else:
                 self.to_screen("No decryption key or keyfile provided.")
-                return [], info
-        
-        else:
-            filepath = info.get('_filename')
-            self.to_screen(f'Pre-processed "{filepath}" with {self._kwargs}')
-        
-        return [], info
 
     def decrypt_single_key(self, filepath, decryption_key):
         try:
@@ -55,7 +62,7 @@ class MP4DecryptPP(PostProcessor):
         try:
             with open(keyfile, 'r') as f:
                 keys = f.read().splitlines()
-            
+
             output_file = f"{os.path.splitext(filepath)[0]}_decrypted{os.path.splitext(filepath)[1]}"
             cmd = ["mp4decrypt"]
             for key in keys:
@@ -69,6 +76,3 @@ class MP4DecryptPP(PostProcessor):
             return True
         except (FileNotFoundError, subprocess.CalledProcessError):
             return False
-
-def setup(downloader, **kwargs):
-    downloader.add_post_processor(MP4DecryptPP(downloader, **kwargs))
