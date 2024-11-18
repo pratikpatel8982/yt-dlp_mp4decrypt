@@ -15,7 +15,7 @@ class MP4DecryptPP(PostProcessor):
         elif info['__real_download']:
             self.decrypt(info)
 
-        if '+' in info['format_id']:
+        if '+' in info['format_id'] and info['has_drm']:
             info['__files_to_merge'] = [part['filepath'] for part in info['requested_formats']]
             info = self._downloader.run_pp(FFmpegMergerPP(), info)
 
